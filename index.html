@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Processor Stress Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            text-align: center;
+        }
+        
+        .header {
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10;
+            border-bottom: 1px solid #333;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            color: #ff5722;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background: #ff5722;
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn:hover {
+            background: #ff7043;
+            transform: scale(1.05);
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .btn-danger {
+            background: #f44336;
+        }
+        
+        .btn-success {
+            background: #4caf50;
+        }
+        
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        
+        .stat-box {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px;
+            border-radius: 5px;
+            min-width: 120px;
+        }
+        
+        .test-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .ball {
+            position: absolute;
+            border-radius: 50%;
+            opacity: 0.8;
+        }
+        
+        .performance-warning {
+            color: #ff9800;
+            margin: 10px 0;
+            font-size: 0.9rem;
+        }
+        
+        .footer {
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 10;
+            border-top: 1px solid #333;
+            font-size: 0.8rem;
+            color: #aaa;
+        }
+        
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.2rem;
+            }
+            
+            .btn {
+                padding: 8px 12px;
+                font-size: 0.9rem;
+            }
+            
+            .stat-box {
+                min-width: 100px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Mobile Processor Stress Test</h1>
+        <div class="controls">
+            <button class="btn" id="startBtn">Start Test</button>
+            <button class="btn btn-danger" id="stopBtn">Stop Test</button>
+            <button class="btn btn-success" id="intensiveBtn">Intensive Mode</button>
+        </div>
+        <div class="performance-warning" id="warning">
+            Warning: This test may cause device heating and increased battery consumption
+        </div>
+        <div class="stats">
+            <div class="stat-box">Balls: <span id="ballCount">0</span></div>
+            <div class="stat-box">FPS: <span id="fps">0</span></div>
+            <div class="stat-box">Lag: <span id="lag">0%</span></div>
+        </div>
+    </div>
+    
+    <div class="test-container" id="testContainer"></div>
+    
+    <div class="footer">
+        <p>This test creates intensive animations to stress your device's processor</p>
+        <p>Higher FPS and lower lag indicate better performance</p>
+    </div>
+
+    <script>
+        // DOM elements
+        const testContainer = document.getElementById('testContainer');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const intensiveBtn = document.getElementById('intensiveBtn');
+        const ballCountEl = document.getElementById('ballCount');
+        const fpsEl = document.getElementById('fps');
+        const lagEl = document.getElementById('lag');
+        
+        // Test variables
+        let animationActive = false;
+        let balls = [];
+        let ballCount = 0;
+        let frameCount = 0;
+        let lastTime = performance.now();
+        let fps = 0;
+        let lagPercentage = 0;
+        let expectedFps = 60;
+        let animationInterval;
+        let intensiveMode = false;
+        
+        // Initialize the test
+        function initTest() {
+            // Clear any existing balls
+            testContainer.innerHTML = '';
+            balls = [];
+            ballCount = 0;
+            updateBallCount();
+            
+            // Set initial FPS display
+            fpsEl.textContent = '0';
+            lagEl.textContent = '0%';
+        }
+        
+        // Create a new ball with random properties
+        function createBall() {
+            const ball = document.createElement('div');
+            ball.className = 'ball';
+            
+            // Random size (30px to 80px)
+            const size = Math.floor(Math.random() * 50) + 30;
+            ball.style.width = `${size}px`;
+            ball.style.height = `${size}px`;
+            
+            // Random position
+            const maxX = testContainer.offsetWidth - size;
+            const maxY = testContainer.offsetHeight - size;
+            const x = Math.floor(Math.random() * maxX);
+            const y = Math.floor(Math.random() * maxY);
+            
+            // Random color with HSL for vibrant colors
+            const hue = Math.floor(Math.random() * 360);
+            ball.style.backgroundColor = `hsl(${hue}, 100%, 50%)`;
+            
+            // Add to container
+            testContainer.appendChild(ball);
+            
+            // Store ball data
+            const ballData = {
+                element: ball,
+                x: x,
+                y: y,
+                size: size,
+                speedX: (Math.random() - 0.5) * (intensiveMode ? 10 : 5),
+                speedY: (Math.random() - 0.5) * (intensiveMode ? 10 : 5),
+                rotation: 0,
+                rotationSpeed: (Math.random() - 0.5) * 10
+            };
+            
+            balls.push(ballData);
+            ballCount++;
+            updateBallCount();
+            
+            return ballData;
+        }
+        
+        // Update ball count display
+        function updateBallCount() {
+            ballCountEl.textContent = ballCount;
+        }
+        
+        // Update FPS counter
+        function updateFPS() {
+            frameCount++;
+            const currentTime = performance.now();
+            const elapsed = currentTime - lastTime;
+            
+            if (elapsed >= 1000) {
+                fps = Math.round((frameCount * 1000) / elapsed);
+                fpsEl.textContent = fps;
+                
+                // Calculate lag percentage
+                const targetFrames = expectedFps * (elapsed / 1000);
+                lagPercentage = Math.round(((targetFrames - frameCount) / targetFrames) * 100);
+                lagEl.textContent = `${lagPercentage}%`;
+                
+                // Reset counters
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+        }
+        
+        // Main animation loop
+        function animateBalls() {
+            if (!animationActive) return;
+            
+            updateFPS();
+            
+            const containerWidth = testContainer.offsetWidth;
+            const containerHeight = testContainer.offsetHeight;
+            
+            // Update each ball's position
+            balls.forEach(ball => {
+                // Update position
+                ball.x += ball.speedX;
+                ball.y += ball.speedY;
+                
+                // Bounce off walls
+                if (ball.x <= 0 || ball.x + ball.size >= containerWidth) {
+                    ball.speedX *= -1;
+                    ball.x = ball.x <= 0 ? 0 : containerWidth - ball.size;
+                }
+                
+                if (ball.y <= 0 || ball.y + ball.size >= containerHeight) {
+                    ball.speedY *= -1;
+                    ball.y = ball.y <= 0 ? 0 : containerHeight - ball.size;
+                }
+                
+                // Update rotation
+                ball.rotation += ball.rotationSpeed;
+                
+                // Apply transformations
+                ball.element.style.transform = `translate(${ball.x}px, ${ball.y}px) rotate(${ball.rotation}deg)`;
+                
+                // Change color occasionally for more intensity
+                if (Math.random() < 0.01) {
+                    const hue = Math.floor(Math.random() * 360);
+                    ball.element.style.backgroundColor = `hsl(${hue}, 100%, 50%)`;
+                }
+            });
+            
+            // Add more balls in intensive mode
+            if (intensiveMode && balls.length < 200 && Math.random() < 0.1) {
+                createBall();
+            }
+            
+            requestAnimationFrame(animateBalls);
+        }
+        
+        // Start the test
+        function startTest() {
+            if (animationActive) return;
+            
+            initTest();
+            animationActive = true;
+            
+            // Create initial balls
+            const initialBalls = intensiveMode ? 50 : 25;
+            for (let i = 0; i < initialBalls; i++) {
+                createBall();
+            }
+            
+            lastTime = performance.now();
+            animateBalls();
+            
+            // Add balls periodically in normal mode
+            if (!intensiveMode) {
+                clearInterval(animationInterval);
+                animationInterval = setInterval(() => {
+                    if (balls.length < 75) {
+                        createBall();
+                    }
+                }, 1000);
+            }
+        }
+        
+        // Stop the test
+        function stopTest() {
+            animationActive = false;
+            clearInterval(animationInterval);
+            balls = [];
+            ballCount = 0;
+            updateBallCount();
+            fpsEl.textContent = '0';
+            lagEl.textContent = '0%';
+            testContainer.innerHTML = '';
+        }
+        
+        // Toggle intensive mode
+        function toggleIntensiveMode() {
+            intensiveMode = !intensiveMode;
+            intensiveBtn.textContent = intensiveMode ? 'Normal Mode' : 'Intensive Mode';
+            intensiveBtn.style.background = intensiveMode ? '#ff9800' : '#4caf50';
+            
+            if (animationActive) {
+                stopTest();
+                startTest();
+            }
+        }
+        
+        // Event listeners
+        startBtn.addEventListener('click', startTest);
+        stopBtn.addEventListener('click', stopTest);
+        intensiveBtn.addEventListener('click', toggleIntensiveMode);
+        
+        // Initialize
+        initTest();
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (animationActive) {
+                // Reset balls positions to stay within new container bounds
+                balls.forEach(ball => {
+                    ball.x = Math.min(ball.x, testContainer.offsetWidth - ball.size);
+                    ball.y = Math.min(ball.y, testContainer.offsetHeight - ball.size);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
